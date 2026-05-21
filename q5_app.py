@@ -1,8 +1,13 @@
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
-from prophet import Prophet
+
+try:
+    from prophet import Prophet
+except Exception as exc:
+    st.error("Prophet import failed. Check the Streamlit Cloud build logs.")
+    st.exception(exc)
+    st.stop()
 
 
 st.set_page_config(page_title="Sunspot Forecast", layout="wide")
@@ -28,63 +33,67 @@ def load_prophet_data() -> pd.DataFrame:
 
 
 @st.cache_resource
-def train_model(df: pd.DataFrame) -> Prophet:
+def train_model(data: pd.DataFrame):
     model = Prophet(
         yearly_seasonality=False,
         changepoint_prior_scale=0.05,
         seasonality_mode="additive",
     )
     model.add_seasonality(name="sunspot_cycle", period=365.25 * 11, fourier_order=5)
-    model.fit(df)
+    model.fit(data)
     return model
 
 
-df = load_prophet_data()
-st.subheader("Data Preview")
-st.dataframe(df.head())
+try:
+    df = load_prophet_data()
+    st.subheader("Data Preview")
+    st.dataframe(df.head())
 
-model = train_model(df)
-future = model.make_future_dataframe(periods=30, freq="Y")
-forecast = model.predict(future)
+    model = train_model(df)
+    future = model.make_future_dataframe(periods=30, freq="YE")
+    forecast = model.predict(future)
 
-st.subheader("Prophet Forecast Plot")
-fig1 = model.plot(forecast)
-st.pyplot(fig1)
+    st.subheader("Prophet Forecast Plot")
+    fig1 = model.plot(forecast)
+    st.pyplot(fig1)
 
-st.subheader("Forecast Components")
-fig2 = model.plot_components(forecast)
-st.pyplot(fig2)
+    st.subheader("Forecast Components")
+    fig2 = model.plot_components(forecast)
+    st.pyplot(fig2)
 
-st.subheader("Actual vs Predicted with Prediction Intervals")
-fig3, ax = plt.subplots(figsize=(14, 6))
-ax.plot(df["ds"], df["y"], label="Actual", color="tab:blue")
-ax.plot(forecast["ds"], forecast["yhat"], label="Predicted", color="tab:orange")
-ax.fill_between(
-    forecast["ds"],
-    forecast["yhat_lower"],
-    forecast["yhat_upper"],
-    color="tab:orange",
-    alpha=0.2,
-    label="Prediction Interval",
-)
-ax.set_xlabel("Year")
-ax.set_ylabel("Sunspot Activity")
-ax.legend()
-ax.grid(True)
-st.pyplot(fig3)
+    st.subheader("Actual vs Predicted with Prediction Intervals")
+    fig3, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(df["ds"], df["y"], label="Actual", color="tab:blue")
+    ax.plot(forecast["ds"], forecast["yhat"], label="Predicted", color="tab:orange")
+    ax.fill_between(
+        forecast["ds"],
+        forecast["yhat_lower"],
+        forecast["yhat_upper"],
+        color="tab:orange",
+        alpha=0.2,
+        label="Prediction Interval",
+    )
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Sunspot Activity")
+    ax.legend()
+    ax.grid(True)
+    st.pyplot(fig3)
 
-st.subheader("Residual Analysis")
-merged = pd.merge(df, forecast[["ds", "yhat"]], on="ds", how="inner")
-merged["residual"] = merged["y"] - merged["yhat"]
+    st.subheader("Residual Analysis")
+    merged = pd.merge(df, forecast[["ds", "yhat"]], on="ds", how="inner")
+    merged["residual"] = merged["y"] - merged["yhat"]
 
-fig4, ax2 = plt.subplots(figsize=(14, 4))
-ax2.plot(merged["ds"], merged["residual"], label="Residual", color="tab:purple")
-ax2.axhline(0, color="gray", linestyle="--", linewidth=1)
-ax2.set_xlabel("Year")
-ax2.set_ylabel("Residual")
-ax2.legend()
-ax2.grid(True)
-st.pyplot(fig4)
+    fig4, ax2 = plt.subplots(figsize=(14, 4))
+    ax2.plot(merged["ds"], merged["residual"], label="Residual", color="tab:purple")
+    ax2.axhline(0, color="gray", linestyle="--", linewidth=1)
+    ax2.set_xlabel("Year")
+    ax2.set_ylabel("Residual")
+    ax2.legend()
+    ax2.grid(True)
+    st.pyplot(fig4)
 
-st.subheader("Residual Summary Statistics")
-st.write(merged["residual"].describe())
+    st.subheader("Residual Summary Statistics")
+    st.write(merged["residual"].describe())
+except Exception as exc:
+    st.error("Q5 Prophet app failed while running.")
+    st.exception(exc)
